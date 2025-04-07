@@ -61,6 +61,7 @@ def get_models():
 
     return jsonify(processed)
 
+
 @app.route('/examples', methods=['GET'])
 def get_examples():
     # 예: examples.json 파일 읽어서 반환
@@ -167,7 +168,6 @@ OUTPUT FORMAT:
 
     # 프론트엔드로 반환
     return jsonify(result)
-
 
 
 if __name__ == '__main__':
