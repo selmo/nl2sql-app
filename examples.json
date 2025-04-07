@@ -1,0 +1,12 @@
+[
+  {
+    "db_schema": "Table: users(columns: id, name, age)",
+    "question": "이름이 Alice인 사용자를 조회해주세요.",
+    "sql": "SELECT * FROM users WHERE name = 'Alice';"
+  },
+  {
+    "db_schema": "Table: orders(columns: order_id, user_id, amount)",
+    "question": "user_id가 2번인 사람들의 주문을 조회해주세요.",
+    "sql": "SELECT * FROM orders WHERE user_id = 2;"
+  }
+]
