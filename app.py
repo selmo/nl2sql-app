@@ -57,7 +57,6 @@ def get_models():
     for item in tags_data['models']:
         # "model" 필드를 UI에서 보여줄 것인지, "name" 필드를 보여줄 것인지 결정
         # 예: "name" 속성만 유지
-        print(f'type: {type(item)}, content: {item}')
         processed.append({"name": item["name"]})
 
     return jsonify(processed)
