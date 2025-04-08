@@ -11,6 +11,17 @@
   <h1>NL2SQL Demo</h1>
 
   <div>
+    <label for="serverUrl">서버 URL(IP): </label>
+    <input type="text" id="serverUrl" placeholder="예: http://172.16.15.112:11434">
+    <button id="updateModelsBtn">모델 업데이트</button>
+    <br>
+    <label for="modelSelect">모델 선택: </label>
+    <select id="modelSelect">
+      <!-- 모델 목록은 main.js에서 동적으로 로드 -->
+    </select>
+    <button id="clearInputsBtn">입력창 초기화</button>
+  </div>
+  <div>
     <h3>DB 스키마</h3>
     <textarea id="dbSchema" rows="5" cols="60" placeholder="DB 스키마를 입력하세요"></textarea>
   </div>
@@ -18,15 +29,6 @@
   <div>
     <h3>질문</h3>
     <textarea id="userQuestion" rows="5" cols="60" placeholder="질문을 입력하세요"></textarea>
-  </div>
-
-  <div>
-    <label for="modelSelect">모델 선택: </label>
-    <select id="modelSelect">
-      <!-- 모델 목록은 main.js에서 동적으로 로드 -->
-    </select>
-    <button id="generateBtn">SQL 생성</button>
-    <button id="clearInputsBtn">입력창 초기화</button>
   </div>
 
   <hr>
@@ -46,6 +48,10 @@
     <div id="examplesContainer" style="display: none;">
       <!-- 예제 목록을 main.js에서 불러와서 보여주고, 클릭하면 DB/질문을 자동 채우도록 -->
     </div>
+  </div>
+  <div>
+    <h3>실행</h3>
+    <button id="generateBtn">SQL 생성</button>
   </div>
 
   <div>

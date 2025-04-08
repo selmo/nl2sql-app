@@ -21,43 +21,34 @@ def index():
 @app.route('/models', methods=['GET'])
 def get_models():
     """
-    ollama 서버 172.16.15.112:11434/api/tags 로부터
-    모델 목록(태그 목록)을 받아와서
-    프론트엔드가 쓰기 좋은 형태로 재가공하여 반환
+    기존에는 특정 IP(172.16.15.112:11434)를 호출했으나,
+    쿼리 파라미터로 전달된 serverUrl이 있으면 그 쪽을 우선 사용.
     """
-    ollama_endpoint = "http://172.16.15.112:11434/api/tags"
+    server_url = request.args.get('serverUrl', '').strip()
+    if not server_url:
+        # serverUrl 파라미터가 없으면 기본값 사용 (예: 기존 IP)
+        server_url = "http://172.16.15.112:11434"
+
+    # 실제 호출할 엔드포인트
+    ollama_endpoint = f"{server_url}/api/tags"
+
     try:
-        resp = requests.get(ollama_endpoint)
+        resp = requests.get(ollama_endpoint, timeout=5)
         resp.raise_for_status()
     except requests.exceptions.RequestException as e:
         print("[ERROR] ollama 서버 /api/tags 요청 실패:", e)
-        return jsonify({"error": "ollama 서버와 통신 중 문제가 발생했습니다."}), 500
+        return jsonify({"error": f"ollama 서버와 통신 중 문제가 발생했습니다: {str(e)}"}), 500
 
-    # ollama 서버 응답이 예:
-    # [
-    #   {
-    #     "name": "phi4:14b",
-    #     "model": "phi4:14b",
-    #     ...
-    #   },
-    #   {
-    #     "name": "sqlcoder:latest",
-    #     "model": "sqlcoder:latest",
-    #     ...
-    #   },
-    #   ...
-    # ]
-    tags_data = resp.json()  # list of dict
-
-    print(f'type: {type(tags_data)}, tags_data: {tags_data}')
-
-    # 프론트엔드의 기존 로직은 [{ "name": ... }, ...] 형태를 가정하고 있으므로
-    # 여기서 필요한 부분만 가공해 반환:
+    # ollama 서버 응답이 {"models": [...]} 구조라면:
+    tags_data = resp.json()
+    # tags_data 내부 구조에 맞게 가공
     processed = []
-    for item in tags_data['models']:
-        # "model" 필드를 UI에서 보여줄 것인지, "name" 필드를 보여줄 것인지 결정
-        # 예: "name" 속성만 유지
-        processed.append({"name": item["name"]})
+    if "models" in tags_data:
+        for item in tags_data["models"]:
+            processed.append({"name": item["name"]})
+    else:
+        # 혹시 구조가 다르면 필요한 대로 파싱
+        processed = tags_data  # 임시
 
     return jsonify(processed)
 
