@@ -3,66 +3,104 @@
 <head>
   <meta charset="UTF-8">
   <title>NL2SQL Demo</title>
-  <!-- style.css를 사용한다면 link 추가
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  -->
+  <style>
+    .rowContainer {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 1rem;
+    }
+    .colBox {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .colBox textarea {
+      width: 100%;
+      height: 120px;
+      box-sizing: border-box;
+    }
+    #compareResult {
+      background: #eee;
+      padding: 10px;
+      min-height: 50px;
+    }
+    #debugRequest, #debugResponse {
+      background: #eee;
+      padding: 10px;
+      max-height: 250px;
+      overflow: auto;
+    }
+  </style>
 </head>
 <body>
   <h1>NL2SQL Demo</h1>
 
+  <!-- 1) 서버URL + 모델 선택/업데이트 -->
   <div>
     <label for="serverUrl">서버 URL(IP): </label>
     <input type="text" id="serverUrl" placeholder="예: http://172.16.15.112:11434">
     <button id="updateModelsBtn">모델 업데이트</button>
-    <br>
-    <label for="modelSelect">모델 선택: </label>
-    <select id="modelSelect">
-      <!-- 모델 목록은 main.js에서 동적으로 로드 -->
-    </select>
+    <br><br>
+
+    <label for="modelSelect">생성용 모델 선택: </label>
+    <select id="modelSelect"></select>
+
+    <!-- "비교 모델"도 동일 형식 UI -->
+    <label for="compareModelSelect" style="margin-left:1rem;">비교 모델 선택: </label>
+    <select id="compareModelSelect"></select>
+    <button id="updateCompareModelsBtn">비교 모델 업데이트</button>
+
+    <!-- 입력창 초기화 -->
     <button id="clearInputsBtn">입력창 초기화</button>
   </div>
-  <div>
-    <h3>DB 스키마</h3>
-    <textarea id="dbSchema" rows="5" cols="60" placeholder="DB 스키마를 입력하세요"></textarea>
-  </div>
-
-  <div>
-    <h3>질문</h3>
-    <textarea id="userQuestion" rows="5" cols="60" placeholder="질문을 입력하세요"></textarea>
-  </div>
 
   <hr>
 
-  <div>
-    <h3>생성된 SQL</h3>
-    <textarea id="sqlResult" rows="3" cols="60" readonly></textarea>
-    <br>
-    <button id="clearOutputBtn">응답 지우기</button>
-  </div>
-
-  <hr>
-
-  <div>
-    <h3>예제</h3>
-    <button id="loadExamplesBtn">예제 보기</button>
-    <div id="examplesContainer" style="display: none;">
-      <!-- 예제 목록을 main.js에서 불러와서 보여주고, 클릭하면 DB/질문을 자동 채우도록 -->
+  <!-- 2) 스키마 / 질문 / "예상 SQL" (GT) 한 줄에 배치 -->
+  <div class="rowContainer">
+    <div class="colBox">
+      <h3>DB 스키마</h3>
+      <textarea id="dbSchema" placeholder="DB 스키마를 입력하세요"></textarea>
+    </div>
+    <div class="colBox">
+      <h3>질문</h3>
+      <textarea id="userQuestion" placeholder="질문을 입력하세요"></textarea>
+    </div>
+    <div class="colBox">
+      <h3>예상 SQL (Ground Truth)</h3>
+      <textarea id="expectedSql" placeholder="예상 SQL"></textarea>
     </div>
   </div>
+
+  <!-- 3) 생성된 SQL만 별도 행에 배치 -->
+  <div class="rowContainer">
+    <div class="colBox">
+      <h3>생성된 SQL</h3>
+      <textarea id="sqlResult" readonly></textarea>
+    </div>
+  </div>
+
+  <!-- 4) 주요 버튼: SQL 생성, 결과/응답 지우기, 예제 불러오기, LLM 비교하기 -->
   <div>
-    <h3>실행</h3>
     <button id="generateBtn">SQL 생성</button>
+    <button id="clearOutputBtn">응답 지우기</button>
+    <button id="loadExamplesBtn">무작위 예제 불러오기</button>
+    <!-- LLM 비교 버튼 -->
+    <button id="compareLLMBtn">LLM 비교</button>
   </div>
 
-  <div>
-    <h3>디버그: Request</h3>
-    <pre id="debugRequest" style="background: #eee; padding: 10px;"></pre>
-  </div>
+  <hr>
 
-  <div>
-    <h3>디버그: Raw Response</h3>
-    <pre id="debugResponse" style="background: #eee; padding: 10px; max-height: 200px; overflow:auto;"></pre>
-  </div>
+  <!-- 5) 비교 결과 -->
+  <h3>비교 결과</h3>
+  <pre id="compareResult"></pre>
+
+  <hr>
+  <!-- 디버그 -->
+  <h3>디버그: Request</h3>
+  <pre id="debugRequest"></pre>
+  <h3>디버그: Raw Response</h3>
+  <pre id="debugResponse"></pre>
 
   <script src="{{ url_for('static', filename='main.js') }}"></script>
 </body>

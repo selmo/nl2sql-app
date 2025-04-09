@@ -1,121 +1,190 @@
+// main.js
 document.addEventListener('DOMContentLoaded', () => {
-  // ① HTML 요소 참조
+
+  // ---------------------------
+  // (A) 서버 주소 정규화 함수
+  // ---------------------------
+  function unifyServerUrl(input) {
+    if (!input || !input.trim()) {
+      return 'http://localhost:11434';
+    }
+    let url = input.trim();
+    if (url.toLowerCase() === 'localhost') {
+      return 'http://localhost:11434';
+    }
+    if (!/^http:\/\//i.test(url) && !/^https:\/\//i.test(url)) {
+      url = 'http://' + url;
+    }
+    try {
+      const parsed = new URL(url);
+      if (!parsed.port) {
+        parsed.port = '11434';
+      }
+      return parsed.toString();
+    } catch (err) {
+      console.warn('URL 파싱 실패:', err);
+      return 'http://localhost:11434';
+    }
+  }
+
+  // ---------------------------
+  // (B) HTML 요소 참조
+  // ---------------------------
+  // 스키마, 질문, (GT)예상 SQL
   const dbSchemaEl = document.getElementById('dbSchema');
   const userQuestionEl = document.getElementById('userQuestion');
+  const expectedSqlEl = document.getElementById('expectedSql');
+
+  // 생성된 SQL
+  const sqlResultEl = document.getElementById('sqlResult');
+
+  // 모델 선택: 생성용
   const modelSelectEl = document.getElementById('modelSelect');
+  const updateModelsBtn = document.getElementById('updateModelsBtn');
+
+  // 모델 선택: 비교용 (새로 추가)
+  const compareModelSelectEl = document.getElementById('compareModelSelect');
+  const updateCompareModelsBtn = document.getElementById('updateCompareModelsBtn');
+
+  // 버튼: SQL 생성, 예제 불러오기, 비교(LLM), 초기화, 응답지우기
   const generateBtn = document.getElementById('generateBtn');
   const clearInputsBtn = document.getElementById('clearInputsBtn');
   const clearOutputBtn = document.getElementById('clearOutputBtn');
   const loadExamplesBtn = document.getElementById('loadExamplesBtn');
-  const examplesContainerEl = document.getElementById('examplesContainer');
-  const sqlResultEl = document.getElementById('sqlResult');
+  const compareLLMBtn = document.getElementById('compareLLMBtn');
+
+  // 디버그/출력
   const debugRequestEl = document.getElementById('debugRequest');
   const debugResponseEl = document.getElementById('debugResponse');
-  // [추가] 서버URL 입력 필드, 모델 업데이트 버튼
+  const compareResultEl = document.getElementById('compareResult');
   const serverUrlEl = document.getElementById('serverUrl');
-  const updateModelsBtn = document.getElementById('updateModelsBtn');
 
-  // 페이지 로드 시, 일단 기본 모델 목록 불러오기
-  // (원래 loadModels()가 172.16.15.112:11434 고정으로 응답하던 상황이라면
-  //  서버 쪽에서 그 부분을 수정해주면 됨. 아래 예시는 serverUrl 없이 호출)
-  loadModels();
+  // 페이지 로드 시, serverUrl 기본값
+  serverUrlEl.value = 'localhost';
 
-  // ① “모델 업데이트” 버튼 클릭 시
+  // ---------------------------
+  // (C) 생성 모델 업데이트
+  // ---------------------------
   updateModelsBtn.addEventListener('click', () => {
-    const userInputUrl = serverUrlEl.value.trim();
-    if (!userInputUrl) {
-      alert('서버 URL(또는 IP)을 입력해주세요.');
-      return;
-    }
-    // 쿼리 파라미터로 전달
-    fetch(`/models?serverUrl=${encodeURIComponent(userInputUrl)}`)
+    const unifiedUrl = unifyServerUrl(serverUrlEl.value);
+
+    fetch(`/models?serverUrl=${encodeURIComponent(unifiedUrl)}`)
       .then(res => {
-        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+        if (!res.ok) throw new Error('HTTP Error: ' + res.status);
         return res.json();
       })
       .then(data => {
-        console.log('[DEBUG] Models from user-input server:', data);
-        // select 요소 비우고 새로 채움
+        console.log('[DEBUG] 생성 모델 목록:', data);
         modelSelectEl.innerHTML = '';
-        data.forEach(modelInfo => {
-          const option = document.createElement('option');
-          option.value = modelInfo.name;
-          option.textContent = modelInfo.name;
-          modelSelectEl.appendChild(option);
+        data.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.name;
+          opt.textContent = m.name;
+          modelSelectEl.appendChild(opt);
         });
       })
       .catch(err => {
-        console.error('모델 로딩 실패:', err);
-        alert('모델 목록 로딩 실패: ' + err.message);
+        console.error('생성 모델 로딩 실패:', err);
+        alert('생성 모델 로딩 실패: ' + err.message);
       });
   });
 
-  // ② 기존에 있던 loadModels() 함수 (기본 서버에서 모델 불러오기)
-  function loadModels() {
-    fetch('/models') // 여기서는 serverUrl 파라미터 없이, 로컬서버 기본 설정 사용
+  // ---------------------------
+  // (D) 비교 모델 업데이트
+  // ---------------------------
+  updateCompareModelsBtn.addEventListener('click', () => {
+    const unifiedUrl = unifyServerUrl(serverUrlEl.value);
+
+    // 예시: /models?serverUrl=... 에서 목록을 받아, "비교 모델" select에 표시
+    fetch(`/models?serverUrl=${encodeURIComponent(unifiedUrl)}`)
       .then(res => {
-        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+        if (!res.ok) throw new Error('HTTP Error: ' + res.status);
         return res.json();
       })
       .then(data => {
-        console.log('[DEBUG] Models:', data);
-        data.forEach(modelInfo => {
-          const option = document.createElement('option');
-          option.value = modelInfo.name;
-          option.textContent = modelInfo.name;
-          modelSelectEl.appendChild(option);
+        console.log('[DEBUG] 비교 모델 목록:', data);
+        compareModelSelectEl.innerHTML = '';
+        data.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.name;
+          opt.textContent = m.name;
+          compareModelSelectEl.appendChild(opt);
         });
       })
       .catch(err => {
-        console.error('모델 로딩 실패:', err);
+        console.error('비교 모델 로딩 실패:', err);
+        alert('비교 모델 로딩 실패: ' + err.message);
       });
+  });
+
+  // ---------------------------
+  // (E) 기본 모델 목록 로딩
+  // ---------------------------
+  function loadModels() {
+    // 서버 쪽에서 기본값(예: localhost:11434)으로 모델 목록
+    fetch('/models')
+      .then(res => {
+        if (!res.ok) throw new Error('HTTP Error: ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        console.log('[DEBUG] 기본 생성 모델 목록:', data);
+        modelSelectEl.innerHTML = '';
+        data.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.name;
+          opt.textContent = m.name;
+          modelSelectEl.appendChild(opt);
+        });
+      })
+      .catch(err => {
+        console.error('기본 모델 로딩 실패:', err);
+      });
+
+    // 비교 모델도 비슷하게 로딩 가능 (원한다면)
+    // 여기는 필요 시 자동 로딩하거나, "비교 모델 업데이트" 버튼을 눌러 수동으로 로딩
   }
 
-  // ③ "SQL 생성" 버튼 클릭 시 로직
+  // ---------------------------
+  // (F) SQL 생성 (기존 로직)
+  // ---------------------------
   generateBtn.addEventListener('click', () => {
-    // 3-1) 사용자 입력값 수집
-    const dbSchema = dbSchemaEl.value.trim();
-    const userQuestion = userQuestionEl.value.trim();
-    const modelName = modelSelectEl.value;
+    // 1) server_url 추가
+    const unifiedUrl = unifyServerUrl(serverUrlEl.value);
 
-    // 3-2) Request payload (서버에 보낼 JSON)
     const payload = {
-      db_schema: dbSchema,
-      question: userQuestion,
-      model_name: modelName
+      db_schema: dbSchemaEl.value.trim(),
+      question: userQuestionEl.value.trim(),
+      model_name: modelSelectEl.value,
+      server_url: unifiedUrl   // 여기 추가
     };
 
-    // 3-3) 디버그용: Request 출력
     debugRequestEl.textContent = JSON.stringify(payload, null, 2);
 
-    // 3-4) /generate 요청
     fetch('/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-      .then(async (res) => {
+      .then(async res => {
         if (!res.ok) {
-          throw new Error(`HTTP Error: ${res.status}`);
+          throw new Error('HTTP Error: ' + res.status);
         }
         const rawText = await res.text();
-        // 디버그: Raw Response
         debugResponseEl.textContent = rawText;
 
-        // JSON 파싱 시도
         let data;
         try {
           data = JSON.parse(rawText);
-        } catch (err) {
-          console.error('JSON 파싱 오류:', err);
-          sqlResultEl.value = 'JSON 파싱 오류: ' + err.message;
+        } catch (e) {
+          console.error('JSON 파싱 오류:', e);
+          sqlResultEl.value = 'JSON 파싱 오류: ' + e.message;
           return;
         }
         return data;
       })
-      .then((data) => {
-        if (!data) return; // 이전 단계에서 에러가 있었을 수도 있음
-
+      .then(data => {
+        if (!data) return;
         if (data.error) {
           sqlResultEl.value = '에러: ' + data.error;
         } else if (data.sql) {
@@ -124,85 +193,119 @@ document.addEventListener('DOMContentLoaded', () => {
           sqlResultEl.value = '(SQL이 없습니다)';
         }
       })
-      .catch((err) => {
-        console.error('fetch 요청 실패:', err);
-        sqlResultEl.value = '요청 실패: ' + err.message;
+      .catch(err => {
+        console.error('생성 요청 실패:', err);
+        sqlResultEl.value = '생성 실패: ' + err.message;
       });
   });
 
-  // ④ "입력창 초기화" 버튼 클릭 시
+  // ---------------------------
+  // (G) 무작위 예제 불러오기
+  // ---------------------------
+  loadExamplesBtn.addEventListener('click', () => {
+    fetch('/examples')
+      .then(res => {
+        if (!res.ok) throw new Error('HTTP Error: ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (!Array.isArray(data) || data.length === 0) {
+          alert('예제가 없습니다!');
+          return;
+        }
+        const idx = Math.floor(Math.random() * data.length);
+        const ex = data[idx];
+        dbSchemaEl.value = ex.db_schema || '';
+        userQuestionEl.value = ex.question || '';
+        // "예상 SQL"로 ex.sql 사용
+        expectedSqlEl.value = ex.sql || '';
+      })
+      .catch(err => {
+        console.error('예제 로딩 실패:', err);
+        alert('예제 로딩 실패: ' + err.message);
+      });
+  });
+
+  // ---------------------------
+  // (H) LLM 비교 버튼
+  // ---------------------------
+  compareLLMBtn.addEventListener('click', () => {
+     // 1) server_url 추가
+    const payload = {
+      db_schema: dbSchemaEl.value.trim(),
+      question: userQuestionEl.value.trim(),
+      model_name: modelSelectEl.value,
+      server_url: unifyServerUrl(serverUrlEl.value),
+      gtSql: expectedSqlEl.value.trim(),
+      genSql: sqlResultEl.value.trim()
+    };
+
+
+    debugRequestEl.textContent = JSON.stringify(payload, null, 2);
+
+    // /compareLLM 라우팅 예시로 호출
+    fetch('/compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(async res => {
+      if (!res.ok) {
+        throw new Error('HTTP Error: ' + res.status);
+      }
+      const rawText = await res.text();
+      debugResponseEl.textContent = rawText;
+
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch (e) {
+        console.error('JSON 파싱 오류:', e);
+        compareResultEl.textContent = 'JSON 파싱 오류: ' + e.message;
+        return;
+      }
+      return data;
+    })
+    .then(data => {
+      if (!data) return;
+      // data는 예: {"resolve_yn":"yes"} 또는 {"resolve_yn":"no"}
+      if (data.resolve_yn === 'yes') {
+        compareResultEl.textContent = '✅ LLM 비교 결과: 동일(기능적으로 같음).';
+      } else if (data.resolve_yn === 'no') {
+        compareResultEl.textContent = '❌ LLM 비교 결과: 다름.';
+      } else {
+        compareResultEl.textContent = '결과 해석 불가: ' + JSON.stringify(data);
+      }
+    })
+    .catch(err => {
+      console.error('LLM 비교 요청 실패:', err);
+      compareResultEl.textContent = 'LLM 비교 실패: ' + err.message;
+    });
+  });
+
+  // ---------------------------
+  // (I) 입력창 초기화
+  // ---------------------------
   clearInputsBtn.addEventListener('click', () => {
     dbSchemaEl.value = '';
     userQuestionEl.value = '';
+    expectedSqlEl.value = '';
+    sqlResultEl.value = '';
+    compareResultEl.textContent = '';
   });
 
-  // ⑤ "응답 지우기" 버튼 클릭 시
+  // ---------------------------
+  // (J) 응답 지우기
+  // ---------------------------
   clearOutputBtn.addEventListener('click', () => {
     sqlResultEl.value = '';
     debugRequestEl.textContent = '';
     debugResponseEl.textContent = '';
+    compareResultEl.textContent = '';
   });
 
-  // ⑥ "예제 보기" 버튼 클릭 시
-  loadExamplesBtn.addEventListener('click', () => {
-    // 토글 방식: 예제 영역 열려 있으면 닫고, 닫혀 있으면 불러오기
-    if (examplesContainerEl.style.display === 'none') {
-      examplesContainerEl.style.display = 'block';
-      fetchExamples(); // 이 때 예제를 로딩
-    } else {
-      examplesContainerEl.style.display = 'none';
-    }
-  });
-
-  // ⑦ 예제 불러오기
-  function fetchExamples() {
-    fetch('/examples')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        console.log('[DEBUG] Examples:', data);
-        renderExamples(data);
-      })
-      .catch(err => {
-        console.error('예제 로딩 실패:', err);
-      });
-  }
-
-  function renderExamples(examples) {
-    examplesContainerEl.innerHTML = '';
-    examples.forEach((ex, idx) => {
-      const button = document.createElement('button');
-      button.textContent = `예제 ${idx + 1}`;
-      button.addEventListener('click', () => {
-        dbSchemaEl.value = ex.db_schema;
-        userQuestionEl.value = ex.question;
-      });
-      examplesContainerEl.appendChild(button);
-      examplesContainerEl.appendChild(document.createElement('br'));
-    });
-  }
-
-  // ⑧ 모델 불러오기
-  function loadModels() {
-    fetch('/models')
-    .then(res => {
-      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-      return res.json();
-    })
-    .then(data => {
-      console.log('[DEBUG] Models:', data);
-      // 예: select 요소에 옵션 추가
-      data.forEach(modelInfo => {
-        const option = document.createElement('option');
-        option.value = modelInfo.name;      // e.g. "phi4:14b"
-        option.textContent = modelInfo.name;
-        modelSelectEl.appendChild(option);
-      });
-    })
-    .catch(err => {
-      console.error('모델 로딩 실패:', err);
-    });
-  }
+  // ---------------------------
+  // (K) 페이지 로드 시 기본 모델 목록 불러오기
+  // ---------------------------
+  loadModels();
 });
