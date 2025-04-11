@@ -30,27 +30,49 @@
       max-height: 250px;
       overflow: auto;
     }
+    .serverControls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .modelControls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
   <h1>NL2SQL Demo</h1>
 
   <!-- 1) 서버URL + 모델 선택/업데이트 -->
-  <div>
-    <label for="serverUrl">서버 URL(IP): </label>
+  <div class="serverControls">
+    <label for="serverUrl">생성용 서버 URL(IP): </label>
     <input type="text" id="serverUrl" placeholder="예: http://172.16.15.112:11434">
-    <button id="updateModelsBtn">모델 업데이트</button>
-    <br><br>
+    <button id="updateModelsBtn">생성 모델 업데이트</button>
+  </div>
 
+  <div class="serverControls">
+    <label for="evalUrl">검증용 서버 URL(IP): </label>
+    <input type="text" id="evalUrl" placeholder="예: http://172.16.15.112:11434">
+    <button id="updateEvalModelsBtn">검증 모델 업데이트</button>
+    <label for="useSameUrl">
+      <input type="checkbox" id="useSameUrl"> 생성/검증 동일 서버 사용
+    </label>
+    <button id="updateAllModelsBtn">모두 업데이트</button>
+  </div>
+
+  <div class="modelControls">
     <label for="modelSelect">생성용 모델 선택: </label>
     <select id="modelSelect"></select>
 
     <!-- "비교 모델"도 동일 형식 UI -->
     <label for="compareModelSelect" style="margin-left:1rem;">비교 모델 선택: </label>
     <select id="compareModelSelect"></select>
-    <button id="updateCompareModelsBtn">비교 모델 업데이트</button>
-
-    <!-- 입력창 초기화 -->
     <button id="clearInputsBtn">입력창 초기화</button>
   </div>
 
@@ -66,6 +88,10 @@
       <h3>질문</h3>
       <textarea id="userQuestion" placeholder="질문을 입력하세요"></textarea>
     </div>
+  </div>
+
+  <!-- 2) 스키마 / 질문 / "예상 SQL" (GT) 한 줄에 배치 -->
+  <div class="rowContainer">
     <div class="colBox">
       <h3>예상 SQL (Ground Truth)</h3>
       <textarea id="expectedSql" placeholder="예상 SQL"></textarea>

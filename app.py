@@ -23,7 +23,7 @@ def get_models():
     server_url = request.args.get('serverUrl', 'http://localhost:11434').strip()
     if not server_url:
         # serverUrl 파라미터가 없으면 기본값 사용 (예: 기존 IP)
-        server_url = "http://172.16.15.112:11434"
+        server_url = "http://localhost:11434"
 
     # 실제 호출할 엔드포인트
     ollama_endpoint = f"{server_url}/api/tags"
@@ -33,7 +33,7 @@ def get_models():
         resp.raise_for_status()
     except requests.exceptions.RequestException as e:
         print("[ERROR] ollama 서버 /api/tags 요청 실패:", e)
-        return jsonify({"error": f"ollama 서버와 통신 중 문제가 발생했습니다: {str(e)}"}), 500
+        return jsonify([]), 200  # 빈 배열 반환으로 변경 (클라이언트에서 오류 처리)
 
     # ollama 서버 응답이 {"models": [...]} 구조라면:
     tags_data = resp.json()
@@ -161,26 +161,24 @@ OUTPUT FORMAT:
     # 프론트엔드로 반환
     return jsonify(result)
 
+
 @app.route('/compare', methods=['POST'])
 def compare_sql():
     """
-    1) 프론트엔드에서 db_schema, question, model_name 등을 받음
-    2) LLM 서버로 POST (요청 형식: model, stream, prompt, format)
-    3) LLM 서버 응답(raw_text)을 디버그용으로 서버 콘솔에 출력
-    4) JSON 파싱(이중 JSON)하여 최종 gen_sql 추출
-    5) {"sql": "...", "debug_response": "..."} 형태로 프론트엔드에 전송
+    1) 프론트엔드에서 데이터를 받고 LLM 검증용 서버로 요청을 보냄
+    2) 검증 서버와 검증 모델은 별도로 지정 가능
     """
     data = request.json
     schema = data.get('db_schema', '')
     question = data.get('question', '')
     model_name = data.get('model_name', '')
-    gt_sql = data.get('gt_sql', '')
-    gen_sql = data.get('gen_sql', '')
+    gt_sql = data.get('gtSql', '')
+    gen_sql = data.get('genSql', '')
 
-    # 1) 추가: server_url 받기
+    # server_url 받기 (검증용 서버 URL)
     server_url = data.get('server_url', 'http://localhost:11434')
 
-    # 1) Prompt 문자열 구성
+    # Prompt 문자열 구성
     prompt_str = f"""Based on below DDL and Question, evaluate if gen_sql correctly resolves the Question.
 If gen_sql and gt_sql produce the same results (functionally equivalent), return "yes" else return "no". 
 Note that SQL queries might have different syntax but still return the same results.
@@ -191,7 +189,7 @@ Question: {question}
 gt_sql (ground truth): {gt_sql}
 gen_sql (generated): {gen_sql}"""
 
-    # 2) LLM 서버로 보낼 request payload
+    # LLM 서버로 보낼 request payload
     request_payload = {
         "model": model_name,
         "stream": False,
@@ -205,24 +203,24 @@ gen_sql (generated): {gen_sql}"""
         }
     }
 
-    # 3) LLM 서버 엔드포인트 (예시)
+    # LLM 서버 엔드포인트
     llm_endpoint = f"{server_url}/api/generate"
 
-    print(f"[DEBUG] LLM Request: server={llm_endpoint}, payload={request_payload}")  # 서버 콘솔(터미널)에 출력
-    # 4) LLM 서버에 POST 요청
+    print(f"[DEBUG] LLM Eval Request: server={llm_endpoint}, model={model_name}")
+
+    # LLM 서버에 POST 요청
     try:
         llm_response = requests.post(llm_endpoint, json=request_payload)
-        llm_response.raise_for_status()  # 2xx 아닌 경우 예외
+        llm_response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        print("[ERROR] LLM 서버 요청 실패:", e)
-        return jsonify({"error": "LLM 서버 요청 중 오류가 발생했습니다."}), 500
+        print("[ERROR] 검증 LLM 서버 요청 실패:", e)
+        return jsonify({"error": "검증 LLM 서버 요청 중 오류가 발생했습니다."}), 500
 
-    # 5) LLM 서버에서 받은 응답(raw) 확인
+    # LLM 서버에서 받은 응답 확인
     raw_text = llm_response.text
-    print("[DEBUG] Raw LLM Response:", raw_text)  # 서버 콘솔(터미널)에 출력
+    print("[DEBUG] Raw LLM Eval Response:", raw_text)
 
-    # 6) 이중 JSON 파싱
-    #   - 최상위 JSON → 내부 "response" 필드 → 실제 {"gen_sql":"..."} 형태
+    # 이중 JSON 파싱
     try:
         top_level_data = json.loads(raw_text)  # 최상위 JSON 파싱
     except json.JSONDecodeError as e:
@@ -232,7 +230,7 @@ gen_sql (generated): {gen_sql}"""
             "debug_response": raw_text
         }), 500
 
-    gen_sql = ""
+    resolve_yn = ""
     nested_json_str = top_level_data.get("response", "")
     if nested_json_str:
         try:
@@ -241,7 +239,7 @@ gen_sql (generated): {gen_sql}"""
         except json.JSONDecodeError as e:
             print("[ERROR] nested 'response' 파싱 실패:", e)
 
-    # 7) 최종 결과 구성: {"sql": "...", "debug_response": "..."}
+    # 최종 결과 구성
     result = {
         "resolve_yn": resolve_yn,
         "debug_response": raw_text
@@ -249,6 +247,7 @@ gen_sql (generated): {gen_sql}"""
 
     # 프론트엔드로 반환
     return jsonify(result)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5001)

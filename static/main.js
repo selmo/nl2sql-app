@@ -38,13 +38,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // 생성된 SQL
   const sqlResultEl = document.getElementById('sqlResult');
 
+  // 서버 URL 및 체크박스
+  const serverUrlEl = document.getElementById('serverUrl');
+  const evalUrlEl = document.getElementById('evalUrl');
+  const useSameUrlCheckbox = document.getElementById('useSameUrl');
+
   // 모델 선택: 생성용
   const modelSelectEl = document.getElementById('modelSelect');
   const updateModelsBtn = document.getElementById('updateModelsBtn');
+  const updateEvalModelsBtn = document.getElementById('updateEvalModelsBtn');
+  const updateAllModelsBtn = document.getElementById('updateAllModelsBtn');
 
-  // 모델 선택: 비교용 (새로 추가)
+  // 모델 선택: 비교용
   const compareModelSelectEl = document.getElementById('compareModelSelect');
-  const updateCompareModelsBtn = document.getElementById('updateCompareModelsBtn');
 
   // 버튼: SQL 생성, 예제 불러오기, 비교(LLM), 초기화, 응답지우기
   const generateBtn = document.getElementById('generateBtn');
@@ -57,106 +63,115 @@ document.addEventListener('DOMContentLoaded', () => {
   const debugRequestEl = document.getElementById('debugRequest');
   const debugResponseEl = document.getElementById('debugResponse');
   const compareResultEl = document.getElementById('compareResult');
-  const serverUrlEl = document.getElementById('serverUrl');
 
   // 페이지 로드 시, serverUrl 기본값
   serverUrlEl.value = 'localhost';
+  evalUrlEl.value = 'localhost';
 
   // ---------------------------
-  // (C) 생성 모델 업데이트
+  // (C) URL 동기화 체크박스 처리
   // ---------------------------
-  updateModelsBtn.addEventListener('click', () => {
-    const unifiedUrl = unifyServerUrl(serverUrlEl.value);
+  useSameUrlCheckbox.addEventListener('change', () => {
+    if (useSameUrlCheckbox.checked) {
+      // 생성용 URL을 검증용 URL에 복사
+      evalUrlEl.value = serverUrlEl.value;
+      evalUrlEl.disabled = true;
+    } else {
+      evalUrlEl.disabled = false;
+    }
+  });
 
-    fetch(`/models?serverUrl=${encodeURIComponent(unifiedUrl)}`)
-      .then(res => {
-        if (!res.ok) throw new Error('HTTP Error: ' + res.status);
-        return res.json();
-      })
-      .then(data => {
-        console.log('[DEBUG] 생성 모델 목록:', data);
-        modelSelectEl.innerHTML = '';
-        data.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m.name;
-          opt.textContent = m.name;
-          modelSelectEl.appendChild(opt);
-        });
-      })
-      .catch(err => {
-        console.error('생성 모델 로딩 실패:', err);
-        alert('생성 모델 로딩 실패: ' + err.message);
-      });
+  // 생성용 URL이 변경될 때 체크박스 상태에 따라 검증용 URL도 업데이트
+  serverUrlEl.addEventListener('input', () => {
+    if (useSameUrlCheckbox.checked) {
+      evalUrlEl.value = serverUrlEl.value;
+    }
   });
 
   // ---------------------------
-  // (D) 비교 모델 업데이트
+  // (C) 모델 업데이트 함수
   // ---------------------------
-  updateCompareModelsBtn.addEventListener('click', () => {
-    const unifiedUrl = unifyServerUrl(serverUrlEl.value);
+  // 모델 리스트를 가져오는 공통 함수
+  async function fetchModelList(serverUrl, targetSelect) {
+    const unifiedUrl = unifyServerUrl(serverUrl);
 
-    // 예시: /models?serverUrl=... 에서 목록을 받아, "비교 모델" select에 표시
-    fetch(`/models?serverUrl=${encodeURIComponent(unifiedUrl)}`)
-      .then(res => {
-        if (!res.ok) throw new Error('HTTP Error: ' + res.status);
-        return res.json();
-      })
-      .then(data => {
-        console.log('[DEBUG] 비교 모델 목록:', data);
-        compareModelSelectEl.innerHTML = '';
-        data.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m.name;
-          opt.textContent = m.name;
-          compareModelSelectEl.appendChild(opt);
-        });
-      })
-      .catch(err => {
-        console.error('비교 모델 로딩 실패:', err);
-        alert('비교 모델 로딩 실패: ' + err.message);
-      });
-  });
+    try {
+      const res = await fetch(`/models?serverUrl=${encodeURIComponent(unifiedUrl)}`);
+      if (!res.ok) throw new Error('HTTP Error: ' + res.status);
 
-  // ---------------------------
-  // (E) 기본 모델 목록 로딩
-  // ---------------------------
-  function loadModels() {
-    // 서버 쪽에서 기본값(예: localhost:11434)으로 모델 목록
-    fetch('/models')
-      .then(res => {
-        if (!res.ok) throw new Error('HTTP Error: ' + res.status);
-        return res.json();
-      })
-      .then(data => {
-        console.log('[DEBUG] 기본 생성 모델 목록:', data);
-        modelSelectEl.innerHTML = '';
-        data.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m.name;
-          opt.textContent = m.name;
-          modelSelectEl.appendChild(opt);
-        });
-      })
-      .catch(err => {
-        console.error('기본 모델 로딩 실패:', err);
+      const data = await res.json();
+      console.log(`[DEBUG] 모델 목록 (${serverUrl}):`, data);
+
+      // 기존 옵션 지우기
+      targetSelect.innerHTML = '';
+
+      // 새 옵션 추가
+      data.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.name;
+        opt.textContent = m.name;
+        targetSelect.appendChild(opt);
       });
 
-    // 비교 모델도 비슷하게 로딩 가능 (원한다면)
-    // 여기는 필요 시 자동 로딩하거나, "비교 모델 업데이트" 버튼을 눌러 수동으로 로딩
+      return true;
+    } catch (err) {
+      console.error(`모델 로딩 실패 (${serverUrl}):`, err);
+      alert(`모델 로딩 실패 (${serverUrl}): ${err.message}`);
+      return false;
+    }
   }
 
   // ---------------------------
-  // (F) SQL 생성 (기존 로직)
+  // (D) 생성 모델 업데이트
+  // ---------------------------
+  updateModelsBtn.addEventListener('click', () => {
+    fetchModelList(serverUrlEl.value, modelSelectEl);
+  });
+
+  // ---------------------------
+  // (E) 검증 모델 업데이트
+  // ---------------------------
+  updateEvalModelsBtn.addEventListener('click', () => {
+    // 체크박스 상태에 따라 서버 URL 선택
+    const serverUrl = useSameUrlCheckbox.checked ? serverUrlEl.value : evalUrlEl.value;
+    fetchModelList(serverUrl, compareModelSelectEl);
+  });
+
+  // ---------------------------
+  // (F) 모든 모델 업데이트
+  // ---------------------------
+  updateAllModelsBtn.addEventListener('click', async () => {
+    // 생성 모델 업데이트
+    await fetchModelList(serverUrlEl.value, modelSelectEl);
+
+    // 검증 모델 업데이트 (체크박스 상태에 따라 서버 URL 선택)
+    const evalServer = useSameUrlCheckbox.checked ? serverUrlEl.value : evalUrlEl.value;
+    await fetchModelList(evalServer, compareModelSelectEl);
+  });
+
+  // ---------------------------
+  // (G) 기본 모델 목록 로딩
+  // ---------------------------
+  function loadModels() {
+    // 서버 쪽에서 기본값(예: localhost:11434)으로 모델 목록
+    fetchModelList('localhost', modelSelectEl);
+    fetchModelList('localhost', compareModelSelectEl);
+  }
+
+  // ---------------------------
+  // (H) SQL 생성
   // ---------------------------
   generateBtn.addEventListener('click', () => {
-    // 1) server_url 추가
+    debugRequestEl.textContent = '';
+    debugResponseEl.textContent = '';
+
     const unifiedUrl = unifyServerUrl(serverUrlEl.value);
 
     const payload = {
       db_schema: dbSchemaEl.value.trim(),
       question: userQuestionEl.value.trim(),
       model_name: modelSelectEl.value,
-      server_url: unifiedUrl   // 여기 추가
+      server_url: unifiedUrl
     };
 
     debugRequestEl.textContent = JSON.stringify(payload, null, 2);
@@ -200,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ---------------------------
-  // (G) 무작위 예제 불러오기
+  // (I) 무작위 예제 불러오기
   // ---------------------------
   loadExamplesBtn.addEventListener('click', () => {
     fetch('/examples')
@@ -227,23 +242,27 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ---------------------------
-  // (H) LLM 비교 버튼
+  // (J) LLM 비교 버튼
   // ---------------------------
   compareLLMBtn.addEventListener('click', () => {
-     // 1) server_url 추가
+    debugRequestEl.textContent = '';
+    debugResponseEl.textContent = '';
+
+    // 체크박스 상태에 따라 서버 URL 선택
+    const evalServer = useSameUrlCheckbox.checked ? serverUrlEl.value : evalUrlEl.value;
+    const unifiedEvalUrl = unifyServerUrl(evalServer);
+
     const payload = {
       db_schema: dbSchemaEl.value.trim(),
       question: userQuestionEl.value.trim(),
-      model_name: modelSelectEl.value,
-      server_url: unifyServerUrl(serverUrlEl.value),
+      model_name: compareModelSelectEl.value,  // 검증 모델 사용
+      server_url: unifiedEvalUrl,  // 검증 서버 URL 사용
       gtSql: expectedSqlEl.value.trim(),
       genSql: sqlResultEl.value.trim()
     };
 
-
     debugRequestEl.textContent = JSON.stringify(payload, null, 2);
 
-    // /compareLLM 라우팅 예시로 호출
     fetch('/compare', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -268,7 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .then(data => {
       if (!data) return;
-      // data는 예: {"resolve_yn":"yes"} 또는 {"resolve_yn":"no"}
       if (data.resolve_yn === 'yes') {
         compareResultEl.textContent = '✅ LLM 비교 결과: 동일(기능적으로 같음).';
       } else if (data.resolve_yn === 'no') {
@@ -284,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ---------------------------
-  // (I) 입력창 초기화
+  // (K) 입력창 초기화
   // ---------------------------
   clearInputsBtn.addEventListener('click', () => {
     dbSchemaEl.value = '';
@@ -295,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ---------------------------
-  // (J) 응답 지우기
+  // (L) 응답 지우기
   // ---------------------------
   clearOutputBtn.addEventListener('click', () => {
     sqlResultEl.value = '';
@@ -305,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ---------------------------
-  // (K) 페이지 로드 시 기본 모델 목록 불러오기
+  // (M) 페이지 로드 시 기본 모델 목록 불러오기
   // ---------------------------
   loadModels();
 });
